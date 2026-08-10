@@ -8,11 +8,6 @@ import pandas as pd
 PROCESSED_DIR = Path("data/processed")
 OPERATIONAL_DIR = Path("data/raw/operational")
 
-OPERATIONAL_DIR.mkdir(
-    parents=True,
-    exist_ok=True
-)
-
 SEED = 42
 
 random.seed(SEED)
@@ -20,20 +15,18 @@ np.random.seed(SEED)
 
 
 # ---------------------------------------------------------
-# Configuration
+# CONFIGURATION
 # ---------------------------------------------------------
 
 INITIAL_STOCK_DAYS = 15
 
 DAMAGE_RATE = 0.002
 
-EXPIRY_RATE = 0.001
-
-RECEIPT_PROBABILITY = 0.08
+EXPIRY_PROBABILITY = 0.001
 
 
 # ---------------------------------------------------------
-# Load data
+# LOAD DATA
 # ---------------------------------------------------------
 
 def load_data():
@@ -41,6 +34,11 @@ def load_data():
     sales = pd.read_csv(
         OPERATIONAL_DIR /
         "fact_sales.csv"
+    )
+
+    shipments = pd.read_csv(
+        OPERATIONAL_DIR /
+        "fact_shipments.csv"
     )
 
     products = pd.read_csv(
@@ -53,11 +51,6 @@ def load_data():
         "dim_warehouse.csv"
     )
 
-    stores = pd.read_csv(
-        PROCESSED_DIR /
-        "dim_store.csv"
-    )
-
     mapping = pd.read_csv(
         PROCESSED_DIR /
         "store_warehouse_mapping.csv"
@@ -67,20 +60,34 @@ def load_data():
         sales["date"]
     )
 
+    shipments["shipment_date"] = (
+        pd.to_datetime(
+            shipments["shipment_date"]
+        )
+    )
+
+    shipments["actual_delivery_date"] = (
+        pd.to_datetime(
+            shipments[
+                "actual_delivery_date"
+            ]
+        )
+    )
+
     return (
         sales,
+        shipments,
         products,
         warehouses,
-        stores,
         mapping,
     )
 
 
 # ---------------------------------------------------------
-# Aggregate sales to warehouse level
+# MAP STORE SALES TO WAREHOUSES
 # ---------------------------------------------------------
 
-def aggregate_demand(
+def aggregate_sales(
     sales,
     mapping
 ):
@@ -91,7 +98,7 @@ def aggregate_demand(
         how="left"
     )
 
-    warehouse_demand = (
+    warehouse_sales = (
         sales
         .groupby(
             [
@@ -105,8 +112,8 @@ def aggregate_demand(
         .sum()
     )
 
-    warehouse_demand = (
-        warehouse_demand
+    warehouse_sales = (
+        warehouse_sales
         .rename(
             columns={
                 "quantity_sold":
@@ -115,11 +122,49 @@ def aggregate_demand(
         )
     )
 
-    return warehouse_demand
+    return warehouse_sales
 
 
 # ---------------------------------------------------------
-# Create product warehouse combinations
+# AGGREGATE ACTUAL SHIPMENT RECEIPTS
+# ---------------------------------------------------------
+
+def aggregate_receipts(
+    shipments
+):
+
+    receipts = (
+        shipments
+        .groupby(
+            [
+                "actual_delivery_date",
+                "product_id",
+                "warehouse_id",
+            ],
+            as_index=False
+        )
+        ["quantity_delivered"]
+        .sum()
+    )
+
+    receipts = (
+        receipts
+        .rename(
+            columns={
+                "actual_delivery_date":
+                "date",
+
+                "quantity_delivered":
+                "received_units",
+            }
+        )
+    )
+
+    return receipts
+
+
+# ---------------------------------------------------------
+# CREATE INVENTORY UNIVERSE
 # ---------------------------------------------------------
 
 def create_inventory_universe(
@@ -151,37 +196,139 @@ def create_inventory_universe(
 
 
 # ---------------------------------------------------------
-# Generate inventory
+# INITIAL STOCK
+# ---------------------------------------------------------
+
+def initialize_stock(
+    universe,
+    demand
+):
+
+    current_stock = {}
+
+    # Calculate average demand for each SKU
+    # and warehouse.
+
+    demand_profile = (
+        demand
+        .groupby(
+            [
+                "product_id",
+                "warehouse_id",
+            ],
+            as_index=False
+        )
+        ["demand_units"]
+        .mean()
+    )
+
+    demand_lookup = {
+        (
+            row.product_id,
+            row.warehouse_id,
+        ): row.demand_units
+
+        for row in demand_profile.itertuples(
+            index=False
+        )
+    }
+
+    for row in universe.itertuples(
+        index=False
+    ):
+
+        avg_demand = demand_lookup.get(
+            (
+                row.product_id,
+                row.warehouse_id,
+            ),
+            10
+        )
+
+        initial_stock = int(
+            max(
+                10,
+                avg_demand
+                * INITIAL_STOCK_DAYS
+                * random.uniform(
+                    0.8,
+                    1.5
+                )
+            )
+        )
+
+        current_stock[
+            (
+                row.product_id,
+                row.warehouse_id
+            )
+        ] = initial_stock
+
+    return current_stock
+
+
+# ---------------------------------------------------------
+# GENERATE INVENTORY
 # ---------------------------------------------------------
 
 def generate_inventory():
 
     (
         sales,
+        shipments,
         products,
         warehouses,
-        stores,
         mapping,
     ) = load_data()
 
-    demand = aggregate_demand(
+    # -----------------------------------------------------
+    # Aggregate demand
+    # -----------------------------------------------------
+
+    demand = aggregate_sales(
         sales,
         mapping
     )
+
+    # -----------------------------------------------------
+    # Aggregate actual shipment receipts
+    # -----------------------------------------------------
+
+    receipts = aggregate_receipts(
+        shipments
+    )
+
+    # -----------------------------------------------------
+    # Inventory universe
+    # -----------------------------------------------------
 
     universe = create_inventory_universe(
         products,
         warehouses
     )
 
+    # -----------------------------------------------------
+    # Date range
+    # -----------------------------------------------------
+
+    start_date = min(
+        demand["date"].min(),
+        receipts["date"].min()
+    )
+
+    end_date = max(
+        demand["date"].max(),
+        receipts["date"].max()
+    )
+
     dates = pd.date_range(
-        sales["date"].min(),
-        sales["date"].max(),
+        start_date,
+        end_date,
         freq="D"
     )
 
     # -----------------------------------------------------
-    # Demand lookup
+    # Lookup dictionaries
     # -----------------------------------------------------
 
     demand_lookup = {
@@ -196,55 +343,34 @@ def generate_inventory():
         )
     }
 
-    # -----------------------------------------------------
-    # Initial stock
-    # -----------------------------------------------------
+    receipt_lookup = {
+        (
+            row.date,
+            row.product_id,
+            row.warehouse_id,
+        ): row.received_units
 
-    current_stock = {}
-
-    for row in universe.itertuples(
-        index=False
-    ):
-
-        product = products[
-            products["product_id"]
-            == row.product_id
-        ].iloc[0]
-
-        # Estimate a starting daily demand.
-        #
-        # We use a conservative baseline
-        # because inventory replenishment
-        # will be generated later.
-
-        estimated_daily_demand = 20
-
-        initial_stock = int(
-            estimated_daily_demand
-            * INITIAL_STOCK_DAYS
-            * random.uniform(
-                0.7,
-                1.5
-            )
+        for row in receipts.itertuples(
+            index=False
         )
-
-        current_stock[
-            (
-                row.product_id,
-                row.warehouse_id
-            )
-        ] = max(
-            initial_stock,
-            10
-        )
+    }
 
     # -----------------------------------------------------
-    # Generate daily inventory
+    # Initialize stock
     # -----------------------------------------------------
+
+    current_stock = initialize_stock(
+        universe,
+        demand
+    )
 
     records = []
 
     inventory_id = 1
+
+    # -----------------------------------------------------
+    # Daily inventory simulation
+    # -----------------------------------------------------
 
     for date in dates:
 
@@ -257,32 +383,25 @@ def generate_inventory():
                 row.warehouse_id
             )
 
-            opening_stock = current_stock[key]
+            opening_stock = (
+                current_stock[key]
+            )
 
             # -------------------------------------------------
-            # Receipts
+            # ACTUAL shipment receipts
             # -------------------------------------------------
-            #
-            # At this stage we don't yet have purchase orders.
-            # We therefore allow occasional replenishment.
-            #
-            # In the next phase this will be replaced by
-            # purchase-order-driven receipts.
 
-            received_units = 0
-
-            if (
-                random.random()
-                < RECEIPT_PROBABILITY
-            ):
-
-                received_units = random.randint(
-                    100,
-                    1000
-                )
+            received_units = receipt_lookup.get(
+                (
+                    date,
+                    row.product_id,
+                    row.warehouse_id,
+                ),
+                0
+            )
 
             # -------------------------------------------------
-            # Demand
+            # Customer demand
             # -------------------------------------------------
 
             demand_units = demand_lookup.get(
@@ -299,30 +418,45 @@ def generate_inventory():
             # -------------------------------------------------
 
             damage_units = int(
+                round(
+                    opening_stock
+                    * DAMAGE_RATE
+                )
+            )
+
+            damage_units = min(
+                damage_units,
                 opening_stock
-                * DAMAGE_RATE
             )
 
             # -------------------------------------------------
             # Expiry
             # -------------------------------------------------
 
-            expiry_units = 0
+            expired_units = 0
 
             if (
+                opening_stock > 0
+                and
                 random.random()
-                < EXPIRY_RATE
+                < EXPIRY_PROBABILITY
             ):
 
-                expiry_units = min(
-                    int(
-                        opening_stock
-                        * random.uniform(
-                            0.01,
-                            0.05
-                        )
-                    ),
+                expired_units = int(
                     opening_stock
+                    * random.uniform(
+                        0.01,
+                        0.05
+                    )
+                )
+
+                expired_units = min(
+                    expired_units,
+                    max(
+                        opening_stock
+                        - damage_units,
+                        0
+                    )
                 )
 
             # -------------------------------------------------
@@ -333,12 +467,12 @@ def generate_inventory():
                 opening_stock
                 + received_units
                 - damage_units
-                - expiry_units,
+                - expired_units,
                 0
             )
 
             # -------------------------------------------------
-            # Actual fulfilled sales
+            # Fulfilled demand
             # -------------------------------------------------
 
             sold_units = min(
@@ -346,11 +480,23 @@ def generate_inventory():
                 available_stock
             )
 
+            # -------------------------------------------------
+            # Stockout
+            # -------------------------------------------------
+
             stockout_units = max(
                 demand_units
                 - sold_units,
                 0
             )
+
+            stockout_flag = int(
+                stockout_units > 0
+            )
+
+            # -------------------------------------------------
+            # Closing inventory
+            # -------------------------------------------------
 
             closing_stock = max(
                 available_stock
@@ -369,7 +515,9 @@ def generate_inventory():
 
                     "date_id":
                         int(
-                            date.strftime("%Y%m%d")
+                            date.strftime(
+                                "%Y%m%d"
+                            )
                         ),
 
                     "date":
@@ -400,14 +548,19 @@ def generate_inventory():
                         damage_units,
 
                     "expired_units":
-                        expiry_units,
+                        expired_units,
 
                     "stockout_units":
                         stockout_units,
+
+                    "stockout_flag":
+                        stockout_flag,
                 }
             )
 
-            current_stock[key] = closing_stock
+            current_stock[key] = (
+                closing_stock
+            )
 
             inventory_id += 1
 
@@ -415,16 +568,40 @@ def generate_inventory():
 
 
 # ---------------------------------------------------------
-# Validation
+# VALIDATION
 # ---------------------------------------------------------
 
 def validate_inventory(df):
 
     print(
-        "\nValidating inventory..."
+        "\n" + "=" * 60
     )
 
+    print(
+        "INVENTORY VALIDATION"
+    )
+
+    print(
+        "=" * 60
+    )
+
+    # -----------------------------------------------------
+    # Negative inventory
+    # -----------------------------------------------------
+
+    negative_inventory = (
+        df["closing_stock"] < 0
+    ).sum()
+
+    print(
+        f"Negative inventory rows: "
+        f"{negative_inventory:,}"
+    )
+
+    # -----------------------------------------------------
     # Inventory equation
+    # -----------------------------------------------------
+
     calculated_closing = (
         df["opening_stock"]
         + df["received_units"]
@@ -433,22 +610,15 @@ def validate_inventory(df):
         - df["expired_units"]
     )
 
-    # Negative values should never occur.
-    invalid_negative = (
-        df["closing_stock"] < 0
-    ).sum()
-
-    print(
-        f"Negative inventory rows: "
-        f"{invalid_negative:,}"
-    )
-
-    # Reconciliation check
-    reconciliation_errors = (
-        df["closing_stock"]
-        != calculated_closing.clip(
+    calculated_closing = (
+        calculated_closing.clip(
             lower=0
         )
+    )
+
+    reconciliation_errors = (
+        df["closing_stock"]
+        != calculated_closing
     ).sum()
 
     print(
@@ -456,23 +626,61 @@ def validate_inventory(df):
         f"{reconciliation_errors:,}"
     )
 
-    # Demand >= actual sales
-    invalid_sales = (
+    # -----------------------------------------------------
+    # Sales cannot exceed demand
+    # -----------------------------------------------------
+
+    demand_errors = (
         df["sold_units"]
         >
         df["demand_units"]
     ).sum()
 
     print(
-        f"Demand/sales violations: "
-        f"{invalid_sales:,}"
+        f"Sales > demand errors: "
+        f"{demand_errors:,}"
+    )
+
+    # -----------------------------------------------------
+    # Stockout validation
+    # -----------------------------------------------------
+
+    calculated_stockout = (
+        df["demand_units"]
+        -
+        df["sold_units"]
+    ).clip(
+        lower=0
+    )
+
+    stockout_errors = (
+        df["stockout_units"]
+        != calculated_stockout
+    ).sum()
+
+    print(
+        f"Stockout calculation errors: "
+        f"{stockout_errors:,}"
+    )
+
+    # -----------------------------------------------------
+    # Receipt validation
+    # -----------------------------------------------------
+
+    negative_receipts = (
+        df["received_units"] < 0
+    ).sum()
+
+    print(
+        f"Negative receipts: "
+        f"{negative_receipts:,}"
     )
 
     return df
 
 
 # ---------------------------------------------------------
-# Save
+# SAVE
 # ---------------------------------------------------------
 
 def save_inventory(df):
@@ -488,42 +696,51 @@ def save_inventory(df):
     )
 
     print(
-        f"\nSaved inventory data:"
+        f"\nSaved:"
         f"\n{output_file}"
     )
 
 
 # ---------------------------------------------------------
-# Main
+# MAIN
 # ---------------------------------------------------------
 
 def main():
 
     print("=" * 60)
-    print("FMCG INVENTORY ENGINE")
+
+    print(
+        "FMCG INVENTORY ENGINE"
+    )
+
     print("=" * 60)
 
     df = generate_inventory()
 
     print(
-        f"\nGenerated inventory records: "
+        f"\nGenerated records: "
         f"{len(df):,}"
     )
 
-    df = validate_inventory(df)
+    df = validate_inventory(
+        df
+    )
 
-    save_inventory(df)
-
-    print("\nInventory summary:")
-
-    print(
-        f"Opening stock: "
-        f"{df['opening_stock'].sum():,}"
+    save_inventory(
+        df
     )
 
     print(
-        f"Received: "
-        f"{df['received_units'].sum():,}"
+        "\nInventory Summary"
+    )
+
+    print(
+        "-" * 40
+    )
+
+    print(
+        f"Demand: "
+        f"{df['demand_units'].sum():,}"
     )
 
     print(
@@ -532,23 +749,42 @@ def main():
     )
 
     print(
-        f"Stockout units: "
-        f"{df['stockout_units'].sum():,}"
+        f"Received: "
+        f"{df['received_units'].sum():,}"
     )
 
     print(
-        f"Closing stock: "
+        f"Closing Stock: "
         f"{df['closing_stock'].sum():,}"
     )
 
     print(
-        f"Expired: "
+        f"Stockout Units: "
+        f"{df['stockout_units'].sum():,}"
+    )
+
+    print(
+        f"Expired Units: "
         f"{df['expired_units'].sum():,}"
     )
 
     print(
-        f"Damaged: "
+        f"Damaged Units: "
         f"{df['damaged_units'].sum():,}"
+    )
+
+    stockout_rate = (
+        df["stockout_units"].sum()
+        /
+        max(
+            df["demand_units"].sum(),
+            1
+        )
+    )
+
+    print(
+        f"Stockout Rate: "
+        f"{stockout_rate * 100:.2f}%"
     )
 
 
