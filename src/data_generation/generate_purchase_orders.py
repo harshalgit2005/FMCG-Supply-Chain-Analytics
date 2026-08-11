@@ -1,43 +1,114 @@
+
+"""
+FMCG PURCHASE ORDER GENERATION ENGINE
+
+Purpose:
+    Generate realistic purchase orders from inventory,
+    product, supplier, and warehouse master data.
+
+Output:
+    data/raw/operational/fact_purchase_orders.csv
+    data/processed/fact_purchase_orders.csv
+
+Important:
+    The generated data includes received_quantity because
+    the MySQL fact_purchase_orders table expects it.
+"""
+
 import random
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from reorder_config import (
-    TARGET_COVERAGE_DAYS,
-    SAFETY_STOCK_PERCENT,
-    MIN_ORDER_QTY,
-    MAX_ORDER_MULTIPLIER,
-)
-
-from supplier_config import SUPPLIER_PROFILES
-
 
 # =========================================================
-# PATHS
+# CONFIGURATION
 # =========================================================
 
-PROCESSED_DIR = Path("data/processed")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-OPERATIONAL_DIR = Path(
-    "data/raw/operational"
-)
+PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+OPERATIONAL_DIR = PROJECT_ROOT / "data" / "raw" / "operational"
 
-OPERATIONAL_DIR.mkdir(
-    parents=True,
-    exist_ok=True
-)
+PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+OPERATIONAL_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# =========================================================
-# RANDOM SEED
-# =========================================================
-
+# Reproducible results
 SEED = 42
 
 random.seed(SEED)
 np.random.seed(SEED)
+
+
+# =========================================================
+# PURCHASE ORDER PARAMETERS
+# =========================================================
+
+# Percentage of lead-time demand maintained as safety stock.
+SAFETY_STOCK_PERCENT = 0.20
+
+# Target number of days of demand after replenishment.
+TARGET_COVERAGE_DAYS = 30
+
+# Review cycle.
+REVIEW_PERIOD_DAYS = 7
+
+# Minimum PO quantity.
+MIN_ORDER_QTY = 100
+
+# Maximum quantity relative to target coverage.
+MAX_ORDER_MULTIPLIER = 2.0
+
+# Controlled quantity variation.
+ORDER_VARIABILITY_MIN = 0.90
+ORDER_VARIABILITY_MAX = 1.10
+
+# Supplier fill-rate ranges.
+SUPPLIER_FILL_RATES = {
+    "Excellent": (0.97, 1.00),
+    "Good": (0.94, 0.99),
+    "Average": (0.88, 0.96),
+    "Poor": (0.75, 0.92),
+}
+
+# Probability of partial receipt even for reasonably
+# performing suppliers.
+PARTIAL_RECEIPT_PROBABILITY = 0.10
+
+# Historical orders are considered received.
+# Orders whose delivery date is after the inventory
+# simulation end date remain Pending / In Transit.
+IN_TRANSIT_PROBABILITY = 0.08
+
+
+# =========================================================
+# SUPPLIER PROFILES
+# =========================================================
+
+SUPPLIER_PROFILES = {
+    "Excellent": {
+        "lead_time_min": 3,
+        "lead_time_max": 7,
+        "late_probability": 0.05,
+    },
+    "Good": {
+        "lead_time_min": 5,
+        "lead_time_max": 10,
+        "late_probability": 0.10,
+    },
+    "Average": {
+        "lead_time_min": 7,
+        "lead_time_max": 14,
+        "late_probability": 0.18,
+    },
+    "Poor": {
+        "lead_time_min": 10,
+        "lead_time_max": 21,
+        "late_probability": 0.30,
+    },
+}
 
 
 # =========================================================
@@ -46,14 +117,20 @@ np.random.seed(SEED)
 
 def load_data():
 
-    print(
-        "\nLoading purchase-order master data..."
-    )
+    print("\nLoading purchase-order master data...")
 
     inventory_file = (
         OPERATIONAL_DIR /
         "fact_inventory.csv"
     )
+
+    # Fallback in case inventory is stored in processed.
+    if not inventory_file.exists():
+
+        inventory_file = (
+            PROCESSED_DIR /
+            "fact_inventory.csv"
+        )
 
     products_file = (
         PROCESSED_DIR /
@@ -92,21 +169,10 @@ def load_data():
     # Read files
     # -----------------------------------------------------
 
-    inventory = pd.read_csv(
-        inventory_file
-    )
-
-    products = pd.read_csv(
-        products_file
-    )
-
-    suppliers = pd.read_csv(
-        suppliers_file
-    )
-
-    warehouses = pd.read_csv(
-        warehouses_file
-    )
+    inventory = pd.read_csv(inventory_file)
+    products = pd.read_csv(products_file)
+    suppliers = pd.read_csv(suppliers_file)
+    warehouses = pd.read_csv(warehouses_file)
 
     # -----------------------------------------------------
     # Convert dates
@@ -119,7 +185,8 @@ def load_data():
         )
 
     inventory["date"] = pd.to_datetime(
-        inventory["date"]
+        inventory["date"],
+        errors="coerce"
     )
 
     # -----------------------------------------------------
@@ -267,17 +334,13 @@ def load_data():
     )
 
     # -----------------------------------------------------
-    # Prevent invalid supplier weights
+    # Clean supplier ratings
     # -----------------------------------------------------
 
-    suppliers["supplier_rating"] = suppliers[
-        "supplier_rating"
-    ].clip(
-        lower=0
+    suppliers["supplier_rating"] = (
+        suppliers["supplier_rating"]
+        .clip(lower=0)
     )
-
-    # If all ratings are zero, use equal weights later.
-    # -----------------------------------------------------
 
     print(
         f"Inventory records : {len(inventory):,}"
@@ -307,9 +370,8 @@ def load_data():
 # CALCULATE AVERAGE DEMAND
 # =========================================================
 
-def calculate_demand_profile(
-    inventory
-):
+def calculate_demand_profile(inventory):
+
     """
     Calculate average daily demand by
     product and warehouse.
@@ -352,25 +414,23 @@ def select_supplier(
     suppliers,
     warehouse
 ):
-    """
-    Select a supplier.
 
-    Priority:
+    """
+    Select supplier using:
+
     1. Same region as warehouse
-    2. Supplier rating as selection weight
+    2. Supplier rating as probability weight
     """
 
-    warehouse_region = warehouse[
-        "region"
-    ]
+    warehouse_region = warehouse["region"]
 
     regional = suppliers[
         suppliers["supplier_region"]
         == warehouse_region
     ]
 
-    # If no supplier exists in the same
-    # region, use all suppliers.
+    # If no supplier exists in the same region,
+    # use all suppliers.
     if regional.empty:
 
         regional = suppliers
@@ -382,19 +442,15 @@ def select_supplier(
             "for purchase-order generation."
         )
 
-    # -----------------------------------------------------
-    # Supplier weights
-    # -----------------------------------------------------
-
-    weights = regional[
-        "supplier_rating"
-    ].astype(float)
+    weights = (
+        regional["supplier_rating"]
+        .astype(float)
+    )
 
     weight_sum = weights.sum()
 
     if weight_sum <= 0:
 
-        # Equal probability if all ratings are zero.
         weights = None
 
     else:
@@ -403,10 +459,6 @@ def select_supplier(
             weights /
             weight_sum
         )
-
-    # -----------------------------------------------------
-    # Select supplier
-    # -----------------------------------------------------
 
     selected = regional.sample(
         n=1,
@@ -427,8 +479,9 @@ def select_supplier(
 def calculate_lead_time(
     supplier
 ):
+
     """
-    Calculate supplier lead time using
+    Calculate supplier lead time from
     supplier performance tier.
     """
 
@@ -438,10 +491,8 @@ def calculate_lead_time(
 
     if performance_tier not in SUPPLIER_PROFILES:
 
-        raise ValueError(
-            f"Unknown supplier performance tier: "
-            f"{performance_tier}"
-        )
+        # Safe fallback
+        performance_tier = "Average"
 
     profile = SUPPLIER_PROFILES[
         performance_tier
@@ -454,7 +505,6 @@ def calculate_lead_time(
 
     # Poor suppliers occasionally
     # experience additional delays.
-
     if (
         random.random()
         < profile["late_probability"]
@@ -466,6 +516,113 @@ def calculate_lead_time(
         )
 
     return lead_time
+
+
+# =========================================================
+# CALCULATE RECEIVED QUANTITY
+# =========================================================
+
+def calculate_received_quantity(
+    ordered_quantity,
+    supplier,
+    order_status
+):
+
+    """
+    Generate received quantity based on
+    supplier performance.
+
+    Received quantity is always <= ordered quantity.
+    """
+
+    ordered_quantity = int(
+        max(
+            0,
+            ordered_quantity
+        )
+    )
+
+    if ordered_quantity <= 0:
+        return 0
+
+    if order_status in [
+        "Pending",
+        "In Transit"
+    ]:
+
+        return 0
+
+    performance_tier = supplier[
+        "performance_tier"
+    ]
+
+    fill_range = SUPPLIER_FILL_RATES.get(
+        performance_tier,
+        SUPPLIER_FILL_RATES["Average"]
+    )
+
+    fill_rate = random.uniform(
+        fill_range[0],
+        fill_range[1]
+    )
+
+    # Occasionally create a more noticeable
+    # partial shipment.
+    if random.random() < PARTIAL_RECEIPT_PROBABILITY:
+
+        fill_rate *= random.uniform(
+            0.85,
+            0.95
+        )
+
+    received_quantity = int(
+        round(
+            ordered_quantity
+            * fill_rate
+        )
+    )
+
+    received_quantity = min(
+        ordered_quantity,
+        max(
+            0,
+            received_quantity
+        )
+    )
+
+    return received_quantity
+
+
+# =========================================================
+# DETERMINE ORDER STATUS
+# =========================================================
+
+def determine_order_status(
+    order_date,
+    expected_delivery_date,
+    simulation_end_date
+):
+
+    """
+    Determine PO status relative to the
+    simulation period.
+
+    Historical delivery:
+        Received
+
+    Future delivery:
+        Pending / In Transit
+    """
+
+    if expected_delivery_date > simulation_end_date:
+
+        if random.random() < 0.50:
+            return "In Transit"
+
+        return "Pending"
+
+    # Historical orders have normally arrived.
+    return "Received"
 
 
 # =========================================================
@@ -492,7 +649,7 @@ def generate_purchase_orders():
     )
 
     # -----------------------------------------------------
-    # Review inventory every 7 days
+    # Review every 7 days
     # -----------------------------------------------------
 
     start_date = inventory[
@@ -506,7 +663,7 @@ def generate_purchase_orders():
     review_dates = pd.date_range(
         start_date,
         end_date,
-        freq="7D"
+        freq=f"{REVIEW_PERIOD_DAYS}D"
     )
 
     records = []
@@ -525,11 +682,10 @@ def generate_purchase_orders():
         ]
 
         if snapshot.empty:
-
             continue
 
         # -------------------------------------------------
-        # Process each inventory position
+        # Process inventory positions
         # -------------------------------------------------
 
         for row in snapshot.itertuples(
@@ -537,7 +693,7 @@ def generate_purchase_orders():
         ):
 
             # -------------------------------------------------
-            # Find demand profile
+            # Demand profile
             # -------------------------------------------------
 
             demand_row = demand_profile[
@@ -557,7 +713,6 @@ def generate_purchase_orders():
             ]
 
             if demand_row.empty:
-
                 continue
 
             average_daily_demand = float(
@@ -567,11 +722,10 @@ def generate_purchase_orders():
             )
 
             if average_daily_demand <= 0:
-
                 continue
 
             # -------------------------------------------------
-            # Find warehouse
+            # Warehouse
             # -------------------------------------------------
 
             warehouse_matches = warehouses[
@@ -582,7 +736,6 @@ def generate_purchase_orders():
             ]
 
             if warehouse_matches.empty:
-
                 continue
 
             warehouse = (
@@ -591,7 +744,7 @@ def generate_purchase_orders():
             )
 
             # -------------------------------------------------
-            # Select supplier
+            # Supplier
             # -------------------------------------------------
 
             supplier = select_supplier(
@@ -600,7 +753,7 @@ def generate_purchase_orders():
             )
 
             # -------------------------------------------------
-            # Calculate lead time
+            # Lead time
             # -------------------------------------------------
 
             lead_time = calculate_lead_time(
@@ -608,7 +761,7 @@ def generate_purchase_orders():
             )
 
             # =================================================
-            # REORDER POINT
+            # SAFETY STOCK
             # =================================================
 
             safety_stock = (
@@ -617,9 +770,16 @@ def generate_purchase_orders():
                 * SAFETY_STOCK_PERCENT
             )
 
+            # =================================================
+            # REORDER POINT
+            # =================================================
+
             reorder_point = (
                 average_daily_demand
-                * lead_time
+                * (
+                    lead_time
+                    + REVIEW_PERIOD_DAYS
+                )
                 + safety_stock
             )
 
@@ -631,11 +791,46 @@ def generate_purchase_orders():
                 row.closing_stock
             )
 
-            # No PO required if stock is
-            # above reorder point.
+            # =================================================
+            # INVENTORY COVERAGE
+            # =================================================
 
-            if current_stock >= reorder_point:
+            inventory_days = (
+                current_stock
+                /
+                average_daily_demand
+            )
 
+            # =================================================
+            # REORDER DECISION
+            # =================================================
+
+            # Primary trigger:
+            # inventory below reorder point.
+            reorder_required = (
+                current_stock
+                < reorder_point
+            )
+
+            # Secondary trigger:
+            # inventory coverage is too low.
+            #
+            # This makes the simulation more realistic
+            # when inventory sits slightly above the
+            # traditional reorder point.
+            low_coverage = (
+                inventory_days
+                < (
+                    lead_time
+                    + REVIEW_PERIOD_DAYS
+                    + 5
+                )
+            )
+
+            if not (
+                reorder_required
+                or low_coverage
+            ):
                 continue
 
             # =================================================
@@ -657,15 +852,13 @@ def generate_purchase_orders():
                 - current_stock
             )
 
-            # Add controlled variability.
-
+            # Controlled variability.
             order_quantity *= random.uniform(
-                0.90,
-                1.10
+                ORDER_VARIABILITY_MIN,
+                ORDER_VARIABILITY_MAX
             )
 
-            # Apply minimum order quantity.
-
+            # Minimum order quantity.
             order_quantity = int(
                 max(
                     MIN_ORDER_QTY,
@@ -673,9 +866,9 @@ def generate_purchase_orders():
                 )
             )
 
-            # -------------------------------------------------
-            # Maximum order quantity
-            # -------------------------------------------------
+            # =================================================
+            # MAXIMUM ORDER QUANTITY
+            # =================================================
 
             maximum_quantity = int(
                 max(
@@ -691,12 +884,7 @@ def generate_purchase_orders():
                 maximum_quantity
             )
 
-            # -------------------------------------------------
-            # Final safety check
-            # -------------------------------------------------
-
             if order_quantity <= 0:
-
                 continue
 
             # =================================================
@@ -723,7 +911,6 @@ def generate_purchase_orders():
             ]
 
             if product_matches.empty:
-
                 continue
 
             unit_cost = float(
@@ -733,8 +920,29 @@ def generate_purchase_orders():
             )
 
             if unit_cost <= 0:
-
                 continue
+
+            # =================================================
+            # ORDER STATUS
+            # =================================================
+
+            order_status = determine_order_status(
+                review_date,
+                expected_delivery,
+                end_date
+            )
+
+            # =================================================
+            # RECEIVED QUANTITY
+            # =================================================
+
+            received_quantity = (
+                calculate_received_quantity(
+                    order_quantity,
+                    supplier,
+                    order_status
+                )
+            )
 
             # =================================================
             # CREATE PO RECORD
@@ -767,7 +975,14 @@ def generate_purchase_orders():
                         row.warehouse_id,
 
                     "ordered_quantity":
-                        order_quantity,
+                        int(
+                            order_quantity
+                        ),
+
+                    "received_quantity":
+                        int(
+                            received_quantity
+                        ),
 
                     "unit_cost":
                         round(
@@ -788,20 +1003,22 @@ def generate_purchase_orders():
                         ),
 
                     "lead_time_days":
-                        lead_time,
+                        int(
+                            lead_time
+                        ),
 
                     "expected_delivery_date":
                         expected_delivery,
 
                     "order_status":
-                        "Pending",
+                        order_status,
                 }
             )
 
             po_id += 1
 
     # -----------------------------------------------------
-    # Convert records to DataFrame
+    # Convert to DataFrame
     # -----------------------------------------------------
 
     return pd.DataFrame(
@@ -821,14 +1038,10 @@ def validate_purchase_orders(
         "\nValidating purchase orders..."
     )
 
-    # -----------------------------------------------------
-    # Empty DataFrame protection
-    # -----------------------------------------------------
-
     if df.empty:
 
         print(
-            "No purchase orders require validation."
+            "No purchase orders generated."
         )
 
         return df
@@ -840,6 +1053,27 @@ def validate_purchase_orders(
     df = df[
         df["ordered_quantity"] > 0
     ]
+
+    # -----------------------------------------------------
+    # Received cannot exceed ordered
+    # -----------------------------------------------------
+
+    df["received_quantity"] = (
+        pd.to_numeric(
+            df["received_quantity"],
+            errors="coerce"
+        )
+        .fillna(0)
+        .astype(int)
+    )
+
+    df["received_quantity"] = (
+        df["received_quantity"]
+        .clip(
+            lower=0,
+            upper=df["ordered_quantity"]
+        )
+    )
 
     # -----------------------------------------------------
     # Positive unit costs
@@ -866,11 +1100,60 @@ def validate_purchase_orders(
     ]
 
     # -----------------------------------------------------
+    # Pending/In Transit must not have received quantity
+    # -----------------------------------------------------
+
+    df.loc[
+        df["order_status"].isin(
+            [
+                "Pending",
+                "In Transit"
+            ]
+        ),
+        "received_quantity"
+    ] = 0
+
+    # -----------------------------------------------------
+    # Received orders must have some receipt
+    # -----------------------------------------------------
+
+    received_mask = (
+        df["order_status"]
+        == "Received"
+    )
+
+    df.loc[
+        received_mask
+        &
+        (
+            df["received_quantity"]
+            <= 0
+        ),
+        "received_quantity"
+    ] = (
+        df.loc[
+            received_mask
+        ]["ordered_quantity"]
+        * 0.90
+    ).round().astype(int)
+
+    # -----------------------------------------------------
     # Remove duplicate POs
     # -----------------------------------------------------
 
     df = df.drop_duplicates(
         subset=[
+            "po_id"
+        ]
+    )
+
+    # -----------------------------------------------------
+    # Sort
+    # -----------------------------------------------------
+
+    df = df.sort_values(
+        by=[
+            "order_date",
             "po_id"
         ]
     )
@@ -894,20 +1177,41 @@ def save_purchase_orders(
     df
 ):
 
-    output_file = (
-        OPERATIONAL_DIR
-        /
+    raw_output = (
+        OPERATIONAL_DIR /
         "fact_purchase_orders.csv"
     )
 
+    processed_output = (
+        PROCESSED_DIR /
+        "fact_purchase_orders.csv"
+    )
+
+    # Save operational copy.
     df.to_csv(
-        output_file,
+        raw_output,
+        index=False
+    )
+
+    # Save processed copy as well.
+    #
+    # This keeps the file available to the current
+    # MySQL loading pipeline.
+    df.to_csv(
+        processed_output,
         index=False
     )
 
     print(
         "\nSaved purchase orders:"
-        f"\n{output_file.resolve()}"
+    )
+
+    print(
+        raw_output.resolve()
+    )
+
+    print(
+        processed_output.resolve()
     )
 
 
@@ -930,7 +1234,7 @@ def main():
     )
 
     # -----------------------------------------------------
-    # Generate POs
+    # Generate
     # -----------------------------------------------------
 
     df = generate_purchase_orders()
@@ -951,8 +1255,7 @@ def main():
         )
 
         print(
-            "This means current inventory "
-            "levels are above reorder points."
+            "Check inventory levels and demand."
         )
 
         return
@@ -992,6 +1295,12 @@ def main():
         ].sum()
     )
 
+    received_units = int(
+        df[
+            "received_quantity"
+        ].sum()
+    )
+
     po_value = float(
         (
             df[
@@ -1010,8 +1319,13 @@ def main():
     )
 
     print(
+        f"Received units: "
+        f"{received_units:,}"
+    )
+
+    print(
         f"PO value: "
-        f"₹{po_value:,.2f}"
+        f"Rs. {po_value:,.2f}"
     )
 
     print(
@@ -1029,9 +1343,16 @@ def main():
         f"{df['warehouse_id'].nunique():,}"
     )
 
-    # -----------------------------------------------------
-    # Supplier distribution
-    # -----------------------------------------------------
+    print(
+        "\nOrder status distribution:"
+    )
+
+    print(
+        df[
+            "order_status"
+        ]
+        .value_counts()
+    )
 
     print(
         "\nSupplier distribution:"
@@ -1052,3 +1373,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

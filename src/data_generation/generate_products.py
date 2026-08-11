@@ -6,139 +6,440 @@ from pathlib import Path
 import pandas as pd
 
 
-RAW_DIR = Path("data/raw/openfoodfacts")
-OUTPUT_DIR = Path("data/processed")
+# =========================================================
+# PATHS
+# =========================================================
 
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+RAW_DIR = Path(
+    "data/raw/openfoodfacts"
+)
+
+OUTPUT_DIR = Path(
+    "data/processed"
+)
+
+OUTPUT_DIR.mkdir(
+    parents=True,
+    exist_ok=True
+)
 
 
-# ---------------------------------------------------------
-# FMCG business mappings
-# ---------------------------------------------------------
+# =========================================================
+# RANDOM SEED
+# =========================================================
+
+SEED = 42
+
+random.seed(
+    SEED
+)
+
+
+# =========================================================
+# FMCG BUSINESS MAPPINGS
+# =========================================================
 
 CATEGORY_MAPPING = {
-    "beverages": "Food & Beverages",
-    "snacks": "Packaged Foods",
-    "biscuits": "Packaged Foods",
-    "cookies": "Packaged Foods",
-    "chocolates": "Packaged Foods",
-    "cereals": "Packaged Foods",
-    "breakfast cereals": "Packaged Foods",
-    "sauces": "Packaged Foods",
-    "pasta": "Packaged Foods",
 
-    "shampoo": "Personal Care",
-    "hair care": "Personal Care",
-    "skin care": "Personal Care",
-    "soap": "Personal Care",
-    "toothpaste": "Personal Care",
-    "deodorants": "Personal Care",
+    "beverages":
+        "Food & Beverages",
 
-    "detergents": "Household Care",
-    "cleaning products": "Household Care",
-    "dishwashing": "Household Care",
+    "drinks":
+        "Food & Beverages",
+
+    "juices":
+        "Food & Beverages",
+
+    "juice":
+        "Food & Beverages",
+
+    "water":
+        "Food & Beverages",
+
+    "tea":
+        "Food & Beverages",
+
+    "coffee":
+        "Food & Beverages",
+
+    "snacks":
+        "Packaged Foods",
+
+    "biscuits":
+        "Packaged Foods",
+
+    "cookies":
+        "Packaged Foods",
+
+    "chocolates":
+        "Packaged Foods",
+
+    "chocolate":
+        "Packaged Foods",
+
+    "cereals":
+        "Packaged Foods",
+
+    "breakfast cereals":
+        "Packaged Foods",
+
+    "sauces":
+        "Packaged Foods",
+
+    "sauce":
+        "Packaged Foods",
+
+    "pasta":
+        "Packaged Foods",
+
+    "noodles":
+        "Packaged Foods",
+
+    "chips":
+        "Packaged Foods",
+
+    "shampoo":
+        "Personal Care",
+
+    "hair care":
+        "Personal Care",
+
+    "skin care":
+        "Personal Care",
+
+    "soap":
+        "Personal Care",
+
+    "toothpaste":
+        "Personal Care",
+
+    "deodorants":
+        "Personal Care",
+
+    "deodorant":
+        "Personal Care",
+
+    "detergents":
+        "Household Care",
+
+    "detergent":
+        "Household Care",
+
+    "cleaning products":
+        "Household Care",
+
+    "dishwashing":
+        "Household Care",
+
+    "dishwasher":
+        "Household Care",
+
 }
 
 
 DEFAULT_CATEGORIES = [
+
     "Packaged Foods",
+
     "Food & Beverages",
+
     "Personal Care",
+
     "Household Care",
+
 ]
 
 
 SUBCATEGORIES = {
+
     "Food & Beverages": [
+
         "Soft Drinks",
         "Juices",
         "Water",
         "Tea",
         "Coffee",
+
     ],
+
     "Packaged Foods": [
+
         "Biscuits",
         "Snacks",
         "Breakfast Cereals",
         "Chocolate",
         "Pasta",
         "Sauces",
+
     ],
+
     "Personal Care": [
+
         "Shampoo",
         "Soap",
         "Toothpaste",
         "Skin Care",
         "Deodorant",
+
     ],
+
     "Household Care": [
+
         "Detergent",
         "Dishwashing",
         "Surface Cleaner",
         "Laundry Care",
+
     ],
+
 }
 
 
-# ---------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------
+# =========================================================
+# TEXT NORMALIZATION
+# =========================================================
 
-def normalize_text(value):
-    if not value:
+def normalize_text(
+    value
+):
+
+    if value is None:
+
         return None
 
-    value = str(value).strip()
+    value = str(
+        value
+    ).strip()
 
-    value = re.sub(r"\s+", " ", value)
+    if not value:
+
+        return None
+
+    value = re.sub(
+        r"\s+",
+        " ",
+        value
+    )
 
     return value
 
 
-def determine_category(raw_category):
-    """
-    Map Open Food Facts category information
-    into our FMCG business categories.
-    """
+# =========================================================
+# CATEGORY
+# =========================================================
+
+def determine_category(
+    raw_category
+):
 
     if not raw_category:
-        return random.choice(DEFAULT_CATEGORIES)
 
-    category_text = raw_category.lower()
+        return random.choice(
+            DEFAULT_CATEGORIES
+        )
 
-    for keyword, category in CATEGORY_MAPPING.items():
+    category_text = (
+        raw_category
+        .lower()
+    )
+
+    for keyword, category in (
+        CATEGORY_MAPPING.items()
+    ):
 
         if keyword in category_text:
+
             return category
 
-    return random.choice(DEFAULT_CATEGORIES)
+    return random.choice(
+        DEFAULT_CATEGORIES
+    )
 
 
-def generate_product_attributes(category):
+# =========================================================
+# UNIT SIZE PARSER
+# =========================================================
+
+def parse_quantity(
+    quantity
+):
+
+    """
+    Convert strings such as:
+
+        400 g
+        1 kg
+        500 ml
+        1 L
+        12 pieces
+
+    into:
+
+        numeric unit_size
+        unit_of_measure
+    """
+
+    if not quantity:
+
+        return (
+            None,
+            "unit"
+        )
+
+    text = str(
+        quantity
+    ).strip().lower()
+
+    # -----------------------------------------------------
+    # Find numeric value
+    # -----------------------------------------------------
+
+    match = re.search(
+        r"(\d+(?:[.,]\d+)?)",
+        text
+    )
+
+    if not match:
+
+        return (
+            None,
+            "unit"
+        )
+
+    try:
+
+        value = float(
+            match.group(1)
+            .replace(",", ".")
+        )
+
+    except ValueError:
+
+        return (
+            None,
+            "unit"
+        )
+
+    # -----------------------------------------------------
+    # Determine measurement
+    # -----------------------------------------------------
+
+    if re.search(
+        r"\bkg\b",
+        text
+    ):
+
+        unit = "kg"
+
+    elif re.search(
+        r"\bmg\b",
+        text
+    ):
+
+        unit = "mg"
+
+    elif re.search(
+        r"\bg\b",
+        text
+    ):
+
+        unit = "g"
+
+    elif re.search(
+        r"\bl\b",
+        text
+    ):
+
+        unit = "L"
+
+    elif re.search(
+        r"\bml\b",
+        text
+    ):
+
+        unit = "ml"
+
+    elif re.search(
+        r"\bcl\b",
+        text
+    ):
+
+        unit = "cl"
+
+    elif re.search(
+        r"\bpcs\b|\bpieces?\b|\bunit\b",
+        text
+    ):
+
+        unit = "unit"
+
+    else:
+
+        unit = "unit"
+
+    return (
+        round(value, 2),
+        unit
+    )
+
+
+# =========================================================
+# BUSINESS ATTRIBUTES
+# =========================================================
+
+def generate_product_attributes(
+    category
+):
 
     subcategory = random.choice(
-        SUBCATEGORIES[category]
+        SUBCATEGORIES[
+            category
+        ]
     )
 
     if category == "Food & Beverages":
-        shelf_life = random.randint(90, 540)
+
+        shelf_life = random.randint(
+            90,
+            540
+        )
 
     elif category == "Packaged Foods":
-        shelf_life = random.randint(120, 720)
+
+        shelf_life = random.randint(
+            120,
+            720
+        )
 
     elif category == "Personal Care":
-        shelf_life = random.randint(365, 1095)
+
+        shelf_life = random.randint(
+            365,
+            1095
+        )
 
     else:
-        shelf_life = random.randint(365, 1095)
+
+        shelf_life = random.randint(
+            365,
+            1095
+        )
 
     unit_cost = round(
-        random.uniform(20, 400),
+        random.uniform(
+            20,
+            400
+        ),
         2
     )
 
     selling_price = round(
-        unit_cost * random.uniform(1.15, 1.60),
+        unit_cost
+        *
+        random.uniform(
+            1.15,
+            1.60
+        ),
         2
     )
 
@@ -146,24 +447,26 @@ def generate_product_attributes(category):
         subcategory,
         shelf_life,
         unit_cost,
-        selling_price,
+        selling_price
     )
 
 
-# ---------------------------------------------------------
-# Main extraction
-# ---------------------------------------------------------
+# =========================================================
+# EXTRACT PRODUCTS
+# =========================================================
 
 def extract_products():
 
     records = []
 
-    json_files = list(
-        RAW_DIR.glob("*.json")
+    json_files = sorted(
+        RAW_DIR.glob(
+            "*.json"
+        )
     )
 
     print(
-        f"Found {len(json_files)} "
+        f"Found {len(json_files):,} "
         f"Open Food Facts files."
     )
 
@@ -177,7 +480,9 @@ def extract_products():
                 encoding="utf-8"
             ) as f:
 
-                data = json.load(f)
+                data = json.load(
+                    f
+                )
 
             product = data.get(
                 "product",
@@ -185,9 +490,15 @@ def extract_products():
             )
 
             barcode = (
-                product.get("code")
+                product.get(
+                    "code"
+                )
                 or file.stem
             )
+
+            barcode = str(
+                barcode
+            ).strip()
 
             product_name = normalize_text(
                 product.get(
@@ -196,31 +507,50 @@ def extract_products():
             )
 
             if not product_name:
+
                 continue
 
             brands = normalize_text(
-                product.get("brands")
+                product.get(
+                    "brands"
+                )
             )
 
             categories = normalize_text(
-                product.get("categories")
+                product.get(
+                    "categories"
+                )
             )
 
             quantity = normalize_text(
-                product.get("quantity")
+                product.get(
+                    "quantity"
+                )
             )
 
             countries = normalize_text(
-                product.get("countries")
+                product.get(
+                    "countries"
+                )
             )
 
             packaging = normalize_text(
-                product.get("packaging")
+                product.get(
+                    "packaging"
+                )
             )
+
+            # -------------------------------------------------
+            # Business category
+            # -------------------------------------------------
 
             category = determine_category(
                 categories
             )
+
+            # -------------------------------------------------
+            # Synthetic business attributes
+            # -------------------------------------------------
 
             (
                 subcategory,
@@ -231,84 +561,192 @@ def extract_products():
                 category
             )
 
+            # -------------------------------------------------
+            # Parse quantity
+            # -------------------------------------------------
+
+            (
+                unit_size,
+                unit_of_measure
+            ) = parse_quantity(
+                quantity
+            )
+
+            # -------------------------------------------------
+            # Product record
+            # -------------------------------------------------
+
             records.append(
                 {
-                    "product_id": f"P{barcode}",
-                    "barcode": barcode,
-                    "product_name": product_name,
-                    "brand": brands or "Unknown",
-                    "category": category,
-                    "subcategory": subcategory,
-                    "unit_size": quantity or "Unknown",
-                    "unit_of_measure": "unit",
-                    "countries": countries or "Unknown",
-                    "packaging": packaging or "Unknown",
-                    "shelf_life_days": shelf_life,
-                    "unit_cost": unit_cost,
-                    "selling_price": selling_price,
+
+                    "product_id":
+                        f"P{barcode}",
+
+                    "barcode":
+                        barcode,
+
+                    "product_name":
+                        product_name,
+
+                    "brand":
+                        brands
+                        or
+                        "Unknown",
+
+                    "category":
+                        category,
+
+                    "subcategory":
+                        subcategory,
+
+                    "unit_size":
+                        unit_size,
+
+                    "unit_of_measure":
+                        unit_of_measure,
+
+                    "countries":
+                        countries
+                        or
+                        "Unknown",
+
+                    "packaging":
+                        packaging
+                        or
+                        "Unknown",
+
+                    "shelf_life_days":
+                        shelf_life,
+
+                    "unit_cost":
+                        unit_cost,
+
+                    "selling_price":
+                        selling_price,
+
                 }
             )
 
         except Exception as e:
 
             print(
-                f"Error processing {file}: {e}"
+                f"Error processing "
+                f"{file.name}: {e}"
             )
 
-    return pd.DataFrame(records)
-
-
-# ---------------------------------------------------------
-# Validation
-# ---------------------------------------------------------
-
-def validate_products(df):
-
-    print("\nRunning product validation...")
-
-    # Remove duplicate barcodes
-    df = df.drop_duplicates(
-        subset=["barcode"]
+    return pd.DataFrame(
+        records
     )
 
-    # Remove missing names
+
+# =========================================================
+# VALIDATION
+# =========================================================
+
+def validate_products(
+    df
+):
+
+    print(
+        "\nRunning product validation..."
+    )
+
+    if df.empty:
+
+        return df
+
+    # -----------------------------------------------------
+    # Duplicate barcodes
+    # -----------------------------------------------------
+
+    df = df.drop_duplicates(
+        subset=[
+            "barcode"
+        ]
+    )
+
+    # -----------------------------------------------------
+    # Product name
+    # -----------------------------------------------------
+
     df = df[
-        df["product_name"].notna()
+        df[
+            "product_name"
+        ].notna()
     ]
 
-    # Ensure valid prices
+    # -----------------------------------------------------
+    # Prices
+    # -----------------------------------------------------
+
     df = df[
-        (df["unit_cost"] > 0)
+        (
+            df[
+                "unit_cost"
+            ] > 0
+        )
         &
-        (df["selling_price"] > 0)
+        (
+            df[
+                "selling_price"
+            ] > 0
+        )
     ]
 
-    # Ensure selling price > cost
+    # -----------------------------------------------------
+    # Selling price > cost
+    # -----------------------------------------------------
+
     df = df[
-        df["selling_price"]
+        df[
+            "selling_price"
+        ]
         >
-        df["unit_cost"]
+        df[
+            "unit_cost"
+        ]
     ]
+
+    # -----------------------------------------------------
+    # Numeric unit size
+    # -----------------------------------------------------
+
+    df[
+        "unit_size"
+    ] = pd.to_numeric(
+        df[
+            "unit_size"
+        ],
+        errors="coerce"
+    )
+
+    # -----------------------------------------------------
+    # Reset index
+    # -----------------------------------------------------
 
     df = df.reset_index(
         drop=True
     )
 
     print(
-        f"Valid products: {len(df):,}"
+        f"Valid products: "
+        f"{len(df):,}"
     )
 
     return df
 
 
-# ---------------------------------------------------------
-# Save
-# ---------------------------------------------------------
+# =========================================================
+# SAVE
+# =========================================================
 
-def save_products(df):
+def save_products(
+    df
+):
 
     output_file = (
-        OUTPUT_DIR /
+        OUTPUT_DIR
+        /
         "dim_product.csv"
     )
 
@@ -318,16 +756,28 @@ def save_products(df):
     )
 
     print(
-        f"\nSaved product master to:"
-        f"\n{output_file}"
+        "\nSaved product master to:"
+        f"\n{output_file.resolve()}"
     )
 
 
+# =========================================================
+# MAIN
+# =========================================================
+
 def main():
 
-    print("=" * 60)
-    print("FMCG PRODUCT MASTER GENERATION")
-    print("=" * 60)
+    print(
+        "=" * 60
+    )
+
+    print(
+        "FMCG PRODUCT MASTER GENERATION"
+    )
+
+    print(
+        "=" * 60
+    )
 
     df = extract_products()
 
@@ -344,17 +794,28 @@ def main():
 
         return
 
-    df = validate_products(df)
-
-    save_products(df)
-
-    print("\nCategory distribution:")
-    print(
-        df["category"]
-        .value_counts()
+    df = validate_products(
+        df
     )
 
-    print("\nSample products:")
+    save_products(
+        df
+    )
+
+    print(
+        "\nCategory distribution:"
+    )
+
+    print(
+        df[
+            "category"
+        ].value_counts()
+    )
+
+    print(
+        "\nSample products:"
+    )
+
     print(
         df[
             [
@@ -363,12 +824,20 @@ def main():
                 "brand",
                 "category",
                 "subcategory",
+                "unit_size",
+                "unit_of_measure",
                 "unit_cost",
                 "selling_price",
             ]
-        ].head(10)
+        ].head(10).to_string(
+            index=False
+        )
     )
 
+
+# =========================================================
+# ENTRY POINT
+# =========================================================
 
 if __name__ == "__main__":
     main()
