@@ -72,7 +72,7 @@ Business Recommendations
 ## Dashboard 1 — Executive Overview
 
 <p align="center">
-<img src="images/executive overview.png" width="100%">
+<img src="images/executive overview.jpeg" width="100%">
 </p>
 
 Provides an executive snapshot of sales performance, inventory value, OTIF, stockouts, inventory turnover, and overall supply chain health.
