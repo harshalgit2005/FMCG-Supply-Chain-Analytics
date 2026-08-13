@@ -67,54 +67,43 @@ Business Recommendations
 
 ---
 
-# Dashboard Preview
-
 ## Dashboard 1 — Executive Overview
 
 <p align="center">
 <img src="images/executive overview.jpeg" width="100%">
 </p>
 
-Provides an executive snapshot of sales performance, inventory value, OTIF, stockouts, inventory turnover, and overall supply chain health.
-
 ---
 
 ## Dashboard 2 — Sales & Demand Analysis
 
 <p align="center">
-<img src="images/sales and demand analysis.png" width="100%">
+<img src="images/sales and demand analysis.jpeg" width="100%">
 </p>
-
-Analyzes revenue trends, category performance, regional sales, monthly demand, and top-performing brands.
 
 ---
 
 ## Dashboard 3 — Inventory Analytics
 
 <p align="center">
-<img src="images/inventory analytics.png" width="100%">
+<img src="images/inventory analytics.jpeg" width="100%">
 </p>
-
-Monitors warehouse inventory, stock availability, inventory turnover, stockouts, inventory aging, and expiry risks.
 
 ---
 
 ## Dashboard 4 — Supplier & Logistics Performance
 
 <p align="center">
-<img src="images/supplier and logistics performance.png" width="100%">
+<img src="images/supplier and logistics performance.jpeg" width="100%">
 </p>
-
-Measures supplier reliability using fill rate, OTIF, delivery delays, shipping costs, and logistics efficiency.
 
 ---
 
 ## Dashboard 5 — Operational KPIs
 
 <p align="center">
-<img src="images/operational kpis.png" width="100%">
+<img src="images/operational kpis.jpeg" width="100%">
 </p>
-
 Tracks operational performance using supply chain KPIs, warehouse utilization, logistics costs, damaged inventory, and inventory movement.
 
 ---
