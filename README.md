@@ -1,157 +1,122 @@
 # 📦 FMCG Supply Chain Performance & Inventory Analytics
 
-### Are we keeping the right inventory at the right location at the right time while minimizing stockouts, expiry losses, and logistics costs?
+### Are we keeping the right inventory at the right location at the right time while minimizing stockouts, overstocking, expiry, and logistics costs?
 
-**Answer:** Built an end-to-end FMCG Supply Chain Analytics platform using live product data, synthetic operational data, Python, MySQL, SQL, and Power BI to monitor inventory performance, supplier efficiency, logistics operations, and sales across the supply chain.
+**Answer:** Built an end-to-end FMCG supply chain analytics platform using live product data, economic indicators, synthetic operational datasets, Python ETL, MySQL, SQL analytics, and Power BI to identify inventory inefficiencies, supplier performance issues, and opportunities to improve supply chain operations.
 
 ---
 
 # Project Overview
 
-Modern FMCG companies process millions of inventory transactions every year. Poor inventory planning leads to stockouts, excess inventory, expiry losses, delayed deliveries, and increased logistics costs.
+Modern FMCG companies manage thousands of products across suppliers, warehouses, distributors, and retail stores. Poor inventory planning can lead to stockouts, excess inventory, product expiry, delayed deliveries, and increased logistics costs.
 
-In this project, I worked as a **Data Analyst** supporting the Supply Chain & Operations team. The objective was to build a complete analytics pipeline that combines live product master data with simulated operational data to monitor inventory, sales, supplier performance, warehouse operations, and logistics through interactive Power BI dashboards.
+In this project, I worked as a **Data Analyst** supporting the Supply Chain and Operations team of a large FMCG company. The objective was to design and build a complete analytics platform that integrates live master data with realistic operational data, transforms it into business-ready datasets, stores it in a relational database, and delivers interactive dashboards for executive decision-making.
 
-The project demonstrates a complete Business Intelligence workflow from API data collection to executive dashboards.
+The project demonstrates a complete data analytics workflow—from API integration and ETL to SQL validation and Power BI reporting.
 
 ---
 
 # Business Problem
 
-An FMCG company's operations leadership wants answers to questions such as:
+The Supply Chain Director wants to answer questions such as:
 
+- Are we keeping the right inventory levels across warehouses?
 - Which products generate the highest revenue?
-- Which warehouses frequently experience stockouts?
 - Which suppliers consistently deliver on time?
+- Where are stockouts occurring most frequently?
+- Which warehouses carry excessive inventory?
 - How much inventory is at risk of expiry?
-- Which regions contribute the most sales?
-- Where can logistics costs be reduced?
-- How efficiently is inventory being converted into sales?
+- What factors contribute most to supply chain costs?
 
-Instead of relying on disconnected reports, this project creates a centralized analytics platform for end-to-end supply chain monitoring.
+Instead of relying on static spreadsheets, this project builds a centralized analytics platform to support inventory optimization and operational decision-making.
 
 ---
 
 # Project Architecture
 
 ```text
-Open Food Facts API
-        │
-        ▼
-Python API Extraction
-        │
-        ▼
-Raw Product Data
-        │
-        ▼
-Synthetic Operational Data Generation
-        │
-        ▼
-Pandas Data Cleaning & Validation
-        │
-        ▼
-MySQL Database
-        │
-        ▼
-SQL Analytics
-        │
-        ▼
-Feature Engineering
-        │
-        ▼
-Power BI Dashboard
-        │
-        ▼
-Business Recommendations
+Open Food Facts API            FRED API
+        │                         │
+        └──────────────┬──────────┘
+                       ▼
+              Python API Extraction
+                       │
+                       ▼
+               Raw Data Collection
+                       │
+                       ▼
+          Pandas Cleaning & Transformation
+                       │
+                       ▼
+     Synthetic Operational Data Generation
+                       │
+                       ▼
+                 Processed CSV Files
+                       │
+                       ▼
+                 MySQL Database
+                       │
+                       ▼
+                 SQL Analytics
+                       │
+                       ▼
+              Power BI Dashboards
+                       │
+                       ▼
+          Business Insights & Decisions
 ```
-
----
-
-## Dashboard 1 — Executive Overview
-
-<p align="center">
-<img src="images/executive overview.jpeg" width="100%">
-</p>
-
----
-
-## Dashboard 2 — Sales & Demand Analysis
-
-<p align="center">
-<img src="images/sales and demand analysis.jpeg" width="100%">
-</p>
-
----
-
-## Dashboard 3 — Inventory Analytics
-
-<p align="center">
-<img src="images/inventory analytics.jpeg" width="100%">
-</p>
-
----
-
-## Dashboard 4 — Supplier & Logistics Performance
-
-<p align="center">
-<img src="images/supplier and logistics performance.jpeg" width="100%">
-</p>
-
----
-
-## Dashboard 5 — Operational KPIs
-
-<p align="center">
-<img src="images/operational kpis.jpeg" width="100%">
-</p>
-Tracks operational performance using supply chain KPIs, warehouse utilization, logistics costs, damaged inventory, and inventory movement.
 
 ---
 
 # Tech Stack
 
 | Category | Technologies |
-|----------|--------------|
+|-----------|--------------|
 | Programming | Python |
-| Data Collection | Open Food Facts API |
+| APIs | Open Food Facts API, FRED API |
 | Data Processing | Pandas, NumPy |
 | Database | MySQL |
-| SQL | MySQL Queries, Joins, Window Functions, CTEs |
+| SQL | Joins, CTEs, Window Functions, Aggregations |
 | Visualization | Power BI |
 | Version Control | Git & GitHub |
 
 ---
 
-# Data Source
+# Data Sources
 
-## Live Data
+## Open Food Facts API
 
-**Open Food Facts API**
-
-Provides:
+Provides live FMCG product master data including:
 
 - Product Name
 - Brand
 - Category
 - Packaging
-- Ingredients
-- Country
-- Product Labels
+- Product Codes
 
 ---
 
-## Generated Operational Data
+## FRED API
 
-Python-generated datasets simulate realistic FMCG operations including:
+Provides macroeconomic indicators used for realistic demand simulation.
+
+Examples include:
+
+- Consumer Price Index
+- Retail Sales Indicators
+- Inflation Trends
+
+---
+
+## Synthetic Operational Data
+
+Business-rule driven datasets generated using Python:
 
 - Sales
 - Inventory
 - Purchase Orders
 - Shipments
 - Inventory Aging
-- Warehouses
-- Suppliers
-- Retail Stores
 
 ---
 
@@ -160,8 +125,11 @@ Python-generated datasets simulate realistic FMCG operations including:
 | Attribute | Value |
 |------------|-------|
 | Product Source | Open Food Facts API |
-| Operational Data | Python Generated |
-| Time Period | 2 Years |
+| Economic Source | FRED API |
+| Operational Data | Synthetic |
+| Storage | MySQL |
+| Format | CSV |
+| Time Span | 2 Years |
 | Products | 97 |
 | Suppliers | 20 |
 | Warehouses | 8 |
@@ -170,7 +138,6 @@ Python-generated datasets simulate realistic FMCG operations including:
 | Inventory Records | 5,840 |
 | Purchase Orders | 839 |
 | Shipments | 839 |
-| Dashboard | Power BI |
 
 ---
 
@@ -178,69 +145,71 @@ Python-generated datasets simulate realistic FMCG operations including:
 
 ## Dimension Tables
 
-- Product
-- Supplier
-- Warehouse
-- Store
-- Date
+| Table | Description |
+|--------|-------------|
+| dim_product | Product master |
+| dim_supplier | Supplier information |
+| dim_store | Retail stores |
+| dim_warehouse | Warehouse master |
+| dim_date | Calendar dimension |
 
 ---
 
 ## Fact Tables
 
-- Sales
-- Inventory
-- Purchase Orders
-- Shipments
-- Inventory Aging
+| Table | Description |
+|--------|-------------|
+| fact_sales | Daily sales transactions |
+| fact_inventory | Daily warehouse inventory |
+| fact_purchase_orders | Procurement orders |
+| fact_shipments | Shipment performance |
+| fact_inventory_aging | Expiry risk inventory |
 
 ---
 
 # Methodology
 
-## 1. Data Collection
+## 1. Live Data Collection
 
-- Extracted live FMCG product information using the Open Food Facts API.
-- Stored raw datasets for traceability.
-
----
-
-## 2. Data Generation
-
-Developed Python generators to create realistic operational datasets including:
-
-- Sales Transactions
-- Inventory
-- Purchase Orders
-- Shipments
-- Inventory Aging
+- Extracted product master data from Open Food Facts API.
+- Retrieved macroeconomic indicators from the FRED API.
+- Stored raw API responses for reproducibility.
 
 ---
 
-## 3. Data Cleaning
+## 2. Data Cleaning
 
 Using Pandas:
 
 - Removed duplicate records
-- Corrected data types
-- Standardized fields
-- Validated foreign keys
+- Standardized categories
 - Cleaned missing values
+- Converted data types
+- Validated product attributes
 
 ---
 
-## 4. Database Design
+## 3. Operational Data Generation
 
-Designed a Star Schema consisting of:
+Generated realistic operational datasets using business rules:
 
-- 5 Dimension Tables
-- 5 Fact Tables
+- Sales simulation
+- Inventory movement
+- Purchase order generation
+- Shipment simulation
+- Inventory aging
+- Supplier lead times
 
-Implemented:
+---
+
+## 4. Data Storage
+
+Loaded processed datasets into MySQL with:
 
 - Primary Keys
 - Foreign Keys
-- Relational Integrity
+- Referential Integrity
+- Data Validation
 
 ---
 
@@ -251,43 +220,79 @@ Performed analytical SQL using:
 - INNER JOIN
 - LEFT JOIN
 - GROUP BY
-- Aggregate Functions
+- HAVING
 - Window Functions
-- CTEs
-- CASE Statements
+- Common Table Expressions (CTEs)
+- Aggregate Functions
 
 ---
 
-## 6. Feature Engineering
+## 6. Dashboard Development
 
-Created KPIs including:
-
-- Revenue
-- Units Sold
-- Inventory Turnover
-- Stockout Rate
-- Inventory Value
-- Fill Rate
-- OTIF
-- Shipping Cost
-- Damage Rate
-- Expiry Risk
+Connected Power BI directly to MySQL and developed five interactive dashboards for executive reporting.
 
 ---
 
-## 7. Dashboard Development
+# Dashboard 1 — Executive Overview
 
-Connected Power BI directly to MySQL and built five interactive dashboards for supply chain decision-making.
+<p align="center">
+<img src="images/executive overview.jpeg" width="100%">
+</p>
+
+Provides an executive summary of supply chain performance, including sales, inventory, logistics, supplier performance, and key operational KPIs.
+
+---
+
+# Dashboard 2 — Sales & Demand Analytics
+
+<p align="center">
+<img src="images/sales and demand analytics.jpeg" width="100%">
+</p>
+
+Analyzes revenue, units sold, demand trends, product performance, regional sales, and customer demand patterns.
+
+---
+
+# Dashboard 3 — Inventory Analytics
+
+<p align="center">
+<img src="images/inventory analytics.jpeg" width="100%">
+</p>
+
+Evaluates inventory value, stock availability, warehouse utilization, inventory turnover, stockouts, damaged inventory, and inventory health.
+
+---
+
+# Dashboard 4 — Supplier Performance
+
+<p align="center">
+<img src="images/supplier performance.jpeg" width="100%">
+</p>
+
+Measures supplier reliability using purchase orders, lead times, fill rates, shipping costs, damage rates, and on-time delivery metrics.
+
+---
+
+# Dashboard 5 — Operational KPIs
+
+<p align="center">
+<img src="images/operational kpis.jpeg" width="100%">
+</p>
+
+Tracks logistics efficiency, shipment performance, inventory aging, expiry risk, operational costs, and supply chain health.
 
 ---
 
 # Key Findings
 
-- Generated over **₹1.07 Billion** in simulated sales across **73,000** transactions.
-- Managed inventory across **8 warehouses** supplying **100 retail stores**.
-- Average shipment fill rate reached **90.8%**.
-- Approximately **11.6%** of shipments experienced delivery delays.
-- Inventory aging highlighted products nearing expiry, enabling proactive stock management.
+Analysis of over **73,000 sales transactions** and **839 purchase orders** identified several operational insights:
+
+- Generated over **₹1.07 Billion** in simulated sales revenue across 97 FMCG products.
+- Inventory was distributed across **8 warehouses** supporting **100 retail stores**.
+- Average shipment fill rate exceeded **90%**, indicating generally strong supplier fulfillment.
+- Approximately **1.7% of shipped units** were damaged during transportation, increasing logistics costs.
+- Late deliveries represented an operational risk affecting warehouse replenishment and inventory availability.
+- Inventory aging highlighted products approaching expiry, creating opportunities to reduce wastage through better inventory rotation.
 
 ---
 
@@ -295,21 +300,21 @@ Connected Power BI directly to MySQL and built five interactive dashboards for s
 
 | Recommendation | Owner | Expected Outcome |
 |---------------|-------|------------------|
-| Increase safety stock for high-demand products | Inventory Team | Reduce stockouts |
-| Prioritize reliable suppliers | Procurement | Improve OTIF |
-| Rebalance warehouse inventory | Supply Chain | Lower holding costs |
-| Monitor aging inventory weekly | Category Managers | Reduce expiry losses |
-| Optimize logistics routes | Logistics Team | Reduce transportation costs |
+| Improve replenishment planning for warehouses with frequent stockouts | Inventory Planning Team | Reduce stockout rate |
+| Negotiate performance improvements with suppliers having high lead times | Procurement Team | Faster replenishment |
+| Monitor damaged shipments and optimize logistics partners | Logistics Team | Lower transportation losses |
+| Prioritize FEFO (First Expiry First Out) inventory rotation | Warehouse Operations | Reduce expiry costs |
+| Continuously monitor inventory turnover and stock levels | Supply Chain Management | Improve working capital efficiency |
 
 ---
 
 # Limitations & Assumptions
 
-- Product master data comes from a public API.
-- Operational datasets are synthetically generated.
-- Customer-level behavior is outside the scope.
-- External market conditions are not modeled.
-- Forecasting models are reserved for future versions.
+- Product master data is obtained from the Open Food Facts API.
+- Operational datasets are synthetically generated using business rules.
+- Demand patterns are simulated and may not fully represent real-world purchasing behavior.
+- Transportation routes, weather, promotions, and competitor activities are not modeled.
+- Economic indicators are used only to improve demand realism.
 
 ---
 
@@ -320,27 +325,30 @@ fmcg-supply-chain-analytics/
 │
 ├── data/
 │   ├── raw/
-│   └── processed/
+│   ├── processed/
+│   └── external/
 │
 ├── dashboard/
 │   └── fmcg_supply_chain.pbix
 │
 ├── images/
-│   ├── executive overview.png
-│   ├── sales and demand analysis.png
-│   ├── inventory analytics.png
-│   ├── supplier and logistics performance.png
-│   └── operational kpis.png
+│   ├── executive overview.jpeg
+│   ├── sales and demand analytics.jpeg
+│   ├── inventory analytics.jpeg
+│   ├── supplier performance.jpeg
+│   └── operational kpis.jpeg
 │
 ├── notebooks/
+│
 ├── sql/
+│
 ├── src/
 │   ├── api/
 │   ├── data_generation/
 │   ├── database/
-│   ├── etl/
 │   ├── features/
-│   └── validation/
+│   ├── preprocessing/
+│   └── utils/
 │
 ├── README.md
 ├── requirements.txt
@@ -351,79 +359,65 @@ fmcg-supply-chain-analytics/
 
 # How to Reproduce
 
-### Clone the repository
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/yourusername/fmcg-supply-chain-analytics.git
 ```
 
-### Create a virtual environment
+### 2. Create a virtual environment
 
 ```bash
 python -m venv .venv
 ```
 
-### Activate the environment
+### 3. Activate the environment
 
 ```bash
 .venv\Scripts\activate
 ```
 
-### Install dependencies
+### 4. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### Configure MySQL
+### 5. Create a `.env` file
 
-Create a `.env` file:
+```env
+OPENFOODFACTS_API_URL=https://world.openfoodfacts.org
+FRED_API_KEY=YOUR_FRED_API_KEY
 
-```text
 DB_HOST=localhost
 DB_USER=root
 DB_PASSWORD=your_password
 DB_NAME=fmcg_supply_chain
 ```
 
-### Generate Data
+### 6. Run the ETL pipeline
 
-```bash
-python src/api/fetch_products.py
+Generate master data, synthetic operational datasets, and load them into MySQL.
 
-python src/data_generation/generate_sales.py
-python src/data_generation/generate_inventory.py
-python src/data_generation/generate_purchase_orders.py
-python src/data_generation/generate_shipments.py
-python src/data_generation/generate_inventory_aging.py
-```
+### 7. Execute SQL validation scripts
 
-### Load into MySQL
+Validate referential integrity and KPI calculations.
 
-```bash
-python src/database/load_mysql.py
-```
+### 8. Open the Power BI dashboard
 
-### Open Power BI
-
-Open:
-
-```text
-dashboard/fmcg_supply_chain.pbix
-```
-
-Refresh the report.
+Open `dashboard/fmcg_supply_chain.pbix` and refresh the data model.
 
 ---
 
 # Future Improvements
 
-- Live ERP integration
-- Demand Forecasting
-- ML-based Stockout Prediction
-- Power BI Service Deployment
-- Streamlit Dashboard
-- Automated ETL Scheduling
+- Integrate real ERP or SAP transactional data.
+- Add demand forecasting using Prophet or XGBoost.
+- Implement inventory optimization models.
+- Automate daily ETL with Apache Airflow.
+- Deploy an interactive Streamlit dashboard.
+- Containerize the project using Docker.
+- Deploy the analytics pipeline on Microsoft Azure or AWS.
 
 ---
 
@@ -431,6 +425,6 @@ Refresh the report.
 
 **Harshal Saudagar**
 
-Aspiring Data Analyst | Python | SQL | MySQL | Power BI | ETL | Supply Chain Analytics | Business Intelligence
+Aspiring Data Analyst | Python | SQL | MySQL | Power BI | ETL | Business Intelligence | Supply Chain Analytics
 
 If you found this project useful, consider giving the repository a ⭐.
