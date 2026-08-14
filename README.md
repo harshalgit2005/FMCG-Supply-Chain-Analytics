@@ -427,4 +427,4 @@ Open `dashboard/fmcg_supply_chain.pbix` and refresh the data model.
 
 Aspiring Data Analyst | Python | SQL | MySQL | Power BI | ETL | Business Intelligence | Supply Chain Analytics
 
-If you found this project useful, consider giving the repository a ⭐.
+If you found this project useful, consider giving the repository a star ⭐.
