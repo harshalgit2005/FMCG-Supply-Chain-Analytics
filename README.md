@@ -271,15 +271,6 @@ Evaluates inventory value, stock availability, warehouse utilization, inventory 
 
 Measures supplier reliability using purchase orders, lead times, fill rates, shipping costs, damage rates, and on-time delivery metrics.
 
----
-
-# Dashboard 5 — Operational KPIs
-
-<p align="center">
-<img src="images/operational kpis.jpeg" width="100%">
-</p>
-
-Tracks logistics efficiency, shipment performance, inventory aging, expiry risk, operational costs, and supply chain health.
 
 ---
 
