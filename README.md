@@ -1,4 +1,4 @@
-# 📦 FMCG Supply Chain Performance & Inventory Analytics
+# FMCG Supply Chain Performance & Inventory Analytics
 
 ### Are we keeping the right inventory at the right location at the right time while minimizing stockouts, overstocking, expiry, and logistics costs?
 
@@ -312,38 +312,70 @@ Analysis of over **73,000 sales transactions** and **839 purchase orders** ident
 # Repository Structure
 
 ```text
-fmcg-supply-chain-analytics/
+FMCG-Supply-Chain-Analytics/
+│
+├── config/
+│   └── config.example.env
+│
+├── dashboard/
+│   ├── Executive Overview.pbix
+│   ├── Sales & Demand Analysis.pbix
+│   ├── Inventory Analytics.pbix
+│   └── Supplier Performance.pbix
 │
 ├── data/
 │   ├── raw/
-│   ├── processed/
-│   └── external/
-│
-├── dashboard/
-│   └── fmcg_supply_chain.pbix
+│   │   ├── fred/
+│   │   └── operational/
+│   │
+│   └── processed/
 │
 ├── images/
 │   ├── executive overview.jpeg
 │   ├── sales and demand analytics.jpeg
 │   ├── inventory analytics.jpeg
-│   ├── supplier performance.jpeg
-│   └── operational kpis.jpeg
-│
-├── notebooks/
+│   └── supplier performance.jpeg
 │
 ├── sql/
+│   ├── schema.sql
+│   ├── views.sql
+│   ├── kpi_queries.sql
+│   └── advanced_analysis.sql
 │
 ├── src/
-│   ├── api/
+│   ├── analysis/
+│   │   ├── inventory.py
+│   │   ├── logistics.py
+│   │   ├── sales.py
+│   │   └── supplier.py
+│   │
+│   ├── cleaning/
+│   │   └── clean_data.py
+│   │
 │   ├── data_generation/
+│   │   ├── generate_inventory.py
+│   │   ├── generate_orders.py
+│   │   ├── generate_products.py
+│   │   ├── generate_sales.py
+│   │   └── generate_shipments.py
+│   │
 │   ├── database/
-│   ├── features/
-│   ├── preprocessing/
+│   │   └── load_mysql.py
+│   │
+│   ├── ingestion/
+│   │   └── fred_api.py
+│   │
+│   ├── transformation/
+│   │   └── transform_data.py
+│   │
 │   └── utils/
+│       ├── helpers.py
+│       ├── logger.py
+│       └── validators.py
 │
+├── .gitignore
 ├── README.md
-├── requirements.txt
-└── main.py
+└── requirements.txt
 ```
 
 ---
